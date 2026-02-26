@@ -1,0 +1,176 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: NexusFlow - AI Content Workflow Platform (AWS SAM)
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 256
+    Runtime: nodejs20.x
+    Architectures:
+      - x86_64
+    Environment:
+      Variables:
+        ASSETS_BUCKET: !Ref AssetsBucket
+        GRAPH_TABLE: !Ref GraphTable
+
+  Api:
+    Cors:
+      AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+      AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
+      AllowOrigin: "'*'"
+
+Resources:
+  # ── S3 Bucket for assets (images, frontend hosting) ──
+  AssetsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "nexusflow-assets-${AWS::AccountId}"
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ["*"]
+            AllowedMethods: [GET, PUT]
+            AllowedOrigins: ["*"]
+            MaxAge: 3600
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+
+  AssetsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref AssetsBucket
+      PolicyDocument:
+        Statement:
+          - Sid: PublicReadForGetBucketObjects
+            Effect: Allow
+            Principal: "*"
+            Action: "s3:GetObject"
+            Resource: !Sub "${AssetsBucket.Arn}/public/*"
+
+  # ── DynamoDB Table for graph state ──
+  GraphTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: NexusFlowGraphs
+      AttributeDefinitions:
+        - AttributeName: workspaceId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: workspaceId
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
+  # ── Lambda: Generate Content (Bedrock Claude) ──
+  GenerateContentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/generateContent/
+      Handler: index.handler
+      Timeout: 60
+      MemorySize: 512
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+              Resource: "*"
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /generate
+            Method: post
+
+  # ── Lambda: Generate Image (Bedrock Titan) ──
+  GenerateImageFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/generateImage/
+      Handler: index.handler
+      Timeout: 60
+      MemorySize: 512
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+              Resource: "*"
+        - S3CrudPolicy:
+            BucketName: !Ref AssetsBucket
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /image
+            Method: post
+
+  # ── Lambda: Graph State (DynamoDB CRUD) ──
+  GraphStateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/graphState/
+      Handler: index.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref GraphTable
+      Events:
+        SaveApi:
+          Type: Api
+          Properties:
+            Path: /workspace/{workspaceId}
+            Method: put
+        LoadApi:
+          Type: Api
+          Properties:
+            Path: /workspace/{workspaceId}
+            Method: get
+
+  # ── Lambda: Score Content (Bedrock Haiku for scoring) ──
+  ScoreContentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/scoreContent/
+      Handler: index.handler
+      Timeout: 30
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+              Resource: "*"
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /score
+            Method: post
+
+  # ── Lambda: Scrape URL ──
+  ScrapeUrlFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/scrapeUrl/
+      Handler: index.handler
+      Timeout: 15
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /scrape
+            Method: post
+
+Outputs:
+  ApiEndpoint:
+    Description: API Gateway endpoint URL
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod"
+
+  AssetsBucketName:
+    Description: S3 bucket for assets
+    Value: !Ref AssetsBucket
+
+  GraphTableName:
+    Description: DynamoDB table name
+    Value: !Ref GraphTable

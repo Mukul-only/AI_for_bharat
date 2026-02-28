@@ -6,7 +6,13 @@ import {
   BookOpen,
   Image,
   TrendingUp,
+  Tags,
+  Calendar,
+  AlignLeft,
   GripVertical,
+  Rocket,
+  Zap,
+  PenTool,
 } from "lucide-react";
 
 const NODE_TYPES = [
@@ -73,9 +79,76 @@ const NODE_TYPES = [
     bgColor: "var(--accent-rose-dim)",
     category: "tools",
   },
+  {
+    type: "tags",
+    label: "Smart Tags",
+    desc: "SEO & hashtags",
+    icon: Tags,
+    color: "#06b6d4",
+    bgColor: "rgba(6, 182, 212, 0.15)",
+    category: "tools",
+  },
+  {
+    type: "schedule",
+    label: "Content Calendar",
+    desc: "AI posting schedule",
+    icon: Calendar,
+    color: "#a855f7",
+    bgColor: "rgba(168, 85, 247, 0.15)",
+    category: "tools",
+  },
+  {
+    type: "summarize",
+    label: "Summarizer",
+    desc: "Content summarization",
+    icon: AlignLeft,
+    color: "#6366f1",
+    bgColor: "rgba(99, 102, 241, 0.15)",
+    category: "tools",
+  },
 ];
 
-export default function Sidebar({ onSave, onLoad, onClear }) {
+const TEMPLATES = [
+  {
+    id: "full",
+    label: "Full Campaign",
+    desc: "All platforms + analytics",
+    icon: Rocket,
+    color: "#8b5cf6",
+    bgColor: "rgba(139, 92, 246, 0.15)",
+    nodes: [
+      "seed",
+      "twitter",
+      "linkedin",
+      "instagram",
+      "blog",
+      "image",
+      "viralScore",
+      "tags",
+      "schedule",
+    ],
+  },
+  {
+    id: "social",
+    label: "Social Blitz",
+    desc: "Twitter + LinkedIn + Instagram",
+    icon: Zap,
+    color: "#f59e0b",
+    bgColor: "rgba(245, 158, 11, 0.15)",
+    nodes: ["seed", "twitter", "linkedin", "instagram", "tags"],
+  },
+  {
+    id: "blog",
+    label: "Blog + SEO",
+    desc: "Article + tags + scoring",
+    icon: PenTool,
+    color: "#10b981",
+    bgColor: "rgba(16, 185, 129, 0.15)",
+    nodes: ["seed", "blog", "summarize", "tags", "viralScore"],
+  },
+];
+
+export default function Sidebar({ onSave, onLoad, onClear, onLoadTemplate }) {
   const onDragStart = (event, nodeType) => {
     event.dataTransfer.setData("application/reactflow", nodeType);
     event.dataTransfer.effectAllowed = "move";
@@ -106,6 +179,33 @@ export default function Sidebar({ onSave, onLoad, onClear }) {
         </div>
       </div>
 
+      {/* Quick Start Templates */}
+      <div className="sidebar-section">
+        <div className="sidebar-section-title">Quick Start</div>
+        {TEMPLATES.map((tpl) => {
+          const Icon = tpl.icon;
+          return (
+            <div
+              key={tpl.id}
+              className="sidebar-node-card sidebar-template-card"
+              onClick={() => onLoadTemplate && onLoadTemplate(tpl)}
+            >
+              <div
+                className="sidebar-node-icon"
+                style={{ background: tpl.bgColor, color: tpl.color }}
+              >
+                <Icon />
+              </div>
+              <div className="sidebar-node-info">
+                <div className="sidebar-node-name">{tpl.label}</div>
+                <div className="sidebar-node-desc">{tpl.desc}</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Node Palette */}
       {Object.entries(categories).map(([key, cat]) => (
         <div className="sidebar-section" key={key}>
           <div className="sidebar-section-title">{cat.title}</div>

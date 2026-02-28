@@ -1,7 +1,15 @@
 import { useState, useCallback } from "react";
 import { Handle, Position, useReactFlow } from "reactflow";
-import { TrendingUp, Loader2, Sparkles } from "lucide-react";
+import { TrendingUp, Sparkles } from "lucide-react";
 import { scoreContent } from "../api";
+import toast from "react-hot-toast";
+
+const toastStyle = {
+  background: "#1a1a28",
+  color: "#f0f0f5",
+  border: "1px solid rgba(255,255,255,0.08)",
+  fontSize: "13px",
+};
 
 export default function ViralScoreNode({ data, id }) {
   const [scoreData, setScoreData] = useState(data.scoreData || null);
@@ -11,22 +19,35 @@ export default function ViralScoreNode({ data, id }) {
 
   const findSourceText = useCallback(() => {
     const edges = getEdges();
-    const incomingEdge = edges.find((e) => e.target === id);
-    if (!incomingEdge) return null;
-    const sourceNode = getNode(incomingEdge.source);
-    if (!sourceNode) return null;
-    return sourceNode.data?.output || sourceNode.data?.text || null;
+    const incomingEdges = edges.filter((e) => e.target === id);
+    for (const edge of incomingEdges) {
+      const sourceNode = getNode(edge.source);
+      if (!sourceNode) continue;
+      const text = sourceNode.data?.output || sourceNode.data?.text;
+      if (text && text.trim()) return text;
+    }
+    return null;
   }, [id, getEdges, getNode]);
 
   const handleAnalyze = useCallback(async () => {
     const text = findSourceText();
-    if (!text) return;
+    if (!text) {
+      toast.error(
+        "Connect a content node first! Drag from a Platform node → this node.",
+        { style: toastStyle },
+      );
+      return;
+    }
     setLoading(true);
     try {
       const result = await scoreContent(text);
       setScoreData(result);
+      toast.success(`Viral score: ${result.score}/100`, {
+        style: toastStyle,
+        iconTheme: { primary: "#f43f5e", secondary: "#f0f0f5" },
+      });
     } catch (err) {
-      console.error("Scoring failed:", err);
+      toast.error(`Analysis failed: ${err.message}`, { style: toastStyle });
     } finally {
       setLoading(false);
     }
@@ -77,7 +98,7 @@ export default function ViralScoreNode({ data, id }) {
             >
               Suggestions
             </div>
-            <ul className="viral-suggestions">
+            <ul className="viral-suggestions nowheel">
               {scoreData.suggestions.map((s, i) => (
                 <li key={i}>{s}</li>
               ))}
@@ -109,7 +130,7 @@ export default function ViralScoreNode({ data, id }) {
 
       <div className="nexus-node-footer">
         <button
-          className="node-btn node-btn-generate"
+          className="node-btn node-btn-generate nodrag"
           onClick={handleAnalyze}
           disabled={loading}
         >
@@ -127,7 +148,7 @@ export default function ViralScoreNode({ data, id }) {
         </button>
       </div>
 
-      <Handle type="target" position={Position.Left} />
+      <Handle type="target" position={Position.Left} id="target" />
     </div>
   );
 }

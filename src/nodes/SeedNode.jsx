@@ -1,36 +1,54 @@
-import { useState, useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { Handle, Position } from "reactflow";
 import { FileText, Link, Loader2 } from "lucide-react";
 import { scrapeUrl } from "../api";
+import toast from "react-hot-toast";
+
+const toastStyle = {
+  background: "#1a1a28",
+  color: "#f0f0f5",
+  border: "1px solid rgba(255,255,255,0.08)",
+  fontSize: "13px",
+};
 
 export default function SeedNode({ data, id }) {
-  const [text, setText] = useState(data.text || "");
-  const [url, setUrl] = useState("");
-  const [scraping, setScraping] = useState(false);
+  // Use data.text as the single source of truth (managed by parent App)
+  const text = data.text || "";
+  const scraping = data._scraping || false;
+  const textareaRef = useRef(null);
 
   const handleTextChange = useCallback(
     (e) => {
       const val = e.target.value;
-      setText(val);
-      if (data.onTextChange) data.onTextChange(id, val);
+      if (data.onUpdate) data.onUpdate(id, { text: val });
     },
-    [id, data],
+    [id, data.onUpdate],
+  );
+
+  const handleUrlChange = useCallback(
+    (e) => {
+      if (data.onUpdate) data.onUpdate(id, { _urlInput: e.target.value });
+    },
+    [id, data.onUpdate],
   );
 
   const handleScrape = useCallback(async () => {
-    if (!url.trim()) return;
-    setScraping(true);
+    const url = (data._urlInput || "").trim();
+    if (!url) return;
+    if (data.onUpdate) data.onUpdate(id, { _scraping: true });
     try {
       const result = await scrapeUrl(url);
       const newText = `[Source: ${result.title}]\n\n${result.text}`;
-      setText(newText);
-      if (data.onTextChange) data.onTextChange(id, newText);
+      if (data.onUpdate)
+        data.onUpdate(id, { text: newText, _scraping: false, _urlInput: "" });
+      toast.success(`Scraped: ${result.wordCount} words`, {
+        style: toastStyle,
+      });
     } catch (err) {
-      console.error("Scrape failed:", err);
-    } finally {
-      setScraping(false);
+      toast.error(`Scrape failed: ${err.message}`, { style: toastStyle });
+      if (data.onUpdate) data.onUpdate(id, { _scraping: false });
     }
-  }, [url, id, data]);
+  }, [id, data.onUpdate, data._urlInput]);
 
   const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
 
@@ -45,7 +63,8 @@ export default function SeedNode({ data, id }) {
       </div>
       <div className="nexus-node-body">
         <textarea
-          className="seed-textarea"
+          ref={textareaRef}
+          className="seed-textarea nodrag nowheel"
           placeholder="Paste your content here... blog post, article, video transcript, or any text you want to transform."
           value={text}
           onChange={handleTextChange}
@@ -53,31 +72,24 @@ export default function SeedNode({ data, id }) {
         />
         <div className="seed-url-row">
           <input
-            className="seed-url-input"
+            className="seed-url-input nodrag"
             type="url"
             placeholder="Or paste a URL to scrape..."
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
+            value={data._urlInput || ""}
+            onChange={handleUrlChange}
           />
           <button
-            className="node-btn node-btn-generate"
+            className="node-btn node-btn-generate nodrag"
             onClick={handleScrape}
-            disabled={scraping || !url.trim()}
+            disabled={scraping || !(data._urlInput || "").trim()}
             style={{ flex: "none", padding: "8px 12px" }}
           >
-            {scraping ? (
-              <Loader2
-                className="spinner"
-                style={{ animation: "spin 0.6s linear infinite" }}
-              />
-            ) : (
-              <Link size={14} />
-            )}
+            {scraping ? <div className="spinner"></div> : <Link size={14} />}
           </button>
         </div>
         <div className="seed-word-count">{wordCount} words</div>
       </div>
-      <Handle type="source" position={Position.Right} />
+      <Handle type="source" position={Position.Right} id="source" />
     </div>
   );
 }

@@ -1,10 +1,18 @@
 import { useState, useCallback } from "react";
 import { Handle, Position, useReactFlow } from "reactflow";
-import { Image, Loader2, Download, Sparkles } from "lucide-react";
+import { Image, Download, Sparkles } from "lucide-react";
 import { generateImage } from "../api";
+import toast from "react-hot-toast";
+
+const toastStyle = {
+  background: "#1a1a28",
+  color: "#f0f0f5",
+  border: "1px solid rgba(255,255,255,0.08)",
+  fontSize: "13px",
+};
 
 const STYLES = [
-  { value: "photorealistic", label: "📷 Photorealistic" },
+  { value: "photorealistic", label: "📷 Photo" },
   { value: "illustration", label: "🎨 Illustration" },
   { value: "minimal", label: "⬜ Minimal" },
   { value: "abstract", label: "🌀 Abstract" },
@@ -19,17 +27,23 @@ export default function ImageNode({ data, id }) {
 
   const findSeedText = useCallback(() => {
     const edges = getEdges();
-    const incomingEdge = edges.find((e) => e.target === id);
-    if (!incomingEdge) return null;
-    const sourceNode = getNode(incomingEdge.source);
-    if (!sourceNode) return null;
-    // Check if source has output text (platform nodes) or text (seed nodes)
-    return sourceNode.data?.output || sourceNode.data?.text || null;
+    const incomingEdges = edges.filter((e) => e.target === id);
+    for (const edge of incomingEdges) {
+      const sourceNode = getNode(edge.source);
+      if (!sourceNode) continue;
+      const text = sourceNode.data?.output || sourceNode.data?.text;
+      if (text && text.trim()) return text;
+    }
+    return null;
   }, [id, getEdges, getNode]);
 
   const handleGenerate = useCallback(async () => {
     const seedText = findSeedText();
     if (!seedText) {
+      toast.error(
+        "Connect a content node first! Drag from Seed / Platform → this node.",
+        { style: toastStyle },
+      );
       return;
     }
     setLoading(true);
@@ -37,8 +51,14 @@ export default function ImageNode({ data, id }) {
       const result = await generateImage(seedText, style);
       setImageUrl(result.imageUrl);
       if (data.onImageChange) data.onImageChange(id, result.imageUrl);
+      toast.success("Image generated!", {
+        style: toastStyle,
+        iconTheme: { primary: "#f59e0b", secondary: "#f0f0f5" },
+      });
     } catch (err) {
-      console.error("Image generation failed:", err);
+      toast.error(`Image generation failed: ${err.message}`, {
+        style: toastStyle,
+      });
     } finally {
       setLoading(false);
     }
@@ -46,11 +66,8 @@ export default function ImageNode({ data, id }) {
 
   const handleDownload = useCallback(() => {
     if (!imageUrl) return;
-    const link = document.createElement("a");
-    link.href = imageUrl;
-    link.download = `nexusflow-${style}-${Date.now()}.png`;
-    link.click();
-  }, [imageUrl, style]);
+    window.open(imageUrl, "_blank");
+  }, [imageUrl]);
 
   return (
     <div className="nexus-node image-node fade-in">
@@ -70,7 +87,7 @@ export default function ImageNode({ data, id }) {
           {STYLES.map((s) => (
             <button
               key={s.value}
-              className={`image-style-option ${style === s.value ? "active" : ""}`}
+              className={`image-style-option nodrag ${style === s.value ? "active" : ""}`}
               onClick={() => setStyle(s.value)}
             >
               {s.label}
@@ -92,7 +109,7 @@ export default function ImageNode({ data, id }) {
 
       <div className="nexus-node-footer">
         <button
-          className="node-btn node-btn-generate"
+          className="node-btn node-btn-generate nodrag"
           onClick={handleGenerate}
           disabled={loading}
         >
@@ -109,13 +126,16 @@ export default function ImageNode({ data, id }) {
           )}
         </button>
         {imageUrl && (
-          <button className="node-btn node-btn-copy" onClick={handleDownload}>
+          <button
+            className="node-btn node-btn-copy nodrag"
+            onClick={handleDownload}
+          >
             <Download size={14} />
           </button>
         )}
       </div>
 
-      <Handle type="target" position={Position.Left} />
+      <Handle type="target" position={Position.Left} id="target" />
     </div>
   );
 }

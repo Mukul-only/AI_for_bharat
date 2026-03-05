@@ -1,128 +1,39 @@
-import { useState, useCallback } from "react";
-import { Handle, Position, useReactFlow } from "reactflow";
+// ── TagsNode — Smart hashtags, categories & SEO keywords ──
+
+import { useState, useCallback, memo } from "react";
+import { Handle, Position } from "reactflow";
 import { Tags, Sparkles, Copy, Check } from "lucide-react";
-import toast from "react-hot-toast";
+import { generateTags } from "../api";
+import { showSuccess, showError } from "../utils/constants";
+import useNodeSource from "../hooks/useNodeSource";
+import useClipboard from "../hooks/useClipboard";
 
-const toastStyle = {
-  background: "#1a1a28",
-  color: "#f0f0f5",
-  border: "1px solid rgba(255,255,255,0.08)",
-  fontSize: "13px",
-};
-
-// Mock tag generation (in production, uses Claude 3 Haiku)
-async function generateTags(text) {
-  await new Promise((r) => setTimeout(r, 800 + Math.random() * 1000));
-
-  const words = text.toLowerCase().split(/\s+/);
-  const topics = [
-    "AI",
-    "ContentCreation",
-    "Marketing",
-    "DigitalStrategy",
-    "Automation",
-    "SocialMedia",
-    "Growth",
-    "Innovation",
-    "Tech",
-    "CreatorEconomy",
-    "Branding",
-    "ContentMarketing",
-    "Productivity",
-    "FutureOfWork",
-    "StartupLife",
-  ];
-
-  // Pick relevant-looking tags based on seed text
-  const selectedHashtags = topics
-    .sort(() => Math.random() - 0.5)
-    .slice(0, 8 + Math.floor(Math.random() * 5))
-    .map((t) => `#${t}`);
-
-  const categories = [
-    "Technology",
-    "Marketing",
-    "Business Strategy",
-    "Social Media",
-    "Content Creation",
-  ];
-  const selectedCategories = categories
-    .sort(() => Math.random() - 0.5)
-    .slice(0, 3);
-
-  const seoKeywords = [
-    "content creation tips",
-    "AI marketing tools",
-    "social media strategy",
-    "content repurposing",
-    "digital content workflow",
-    "content automation",
-    "engagement optimization",
-  ];
-  const selectedKeywords = seoKeywords
-    .sort(() => Math.random() - 0.5)
-    .slice(0, 5);
-
-  return {
-    hashtags: selectedHashtags,
-    categories: selectedCategories,
-    keywords: selectedKeywords,
-    readingLevel: ["Beginner", "Intermediate", "Advanced"][
-      Math.floor(Math.random() * 3)
-    ],
-    estimatedReadTime: `${2 + Math.floor(Math.random() * 8)} min read`,
-  };
-}
-
-export default function TagsNode({ data, id }) {
+function TagsNode({ data, id }) {
   const [tagData, setTagData] = useState(data.tagData || null);
   const [loading, setLoading] = useState(false);
-  const [copied, setCopied] = useState(false);
 
-  const { getEdges, getNode } = useReactFlow();
-
-  const findSourceText = useCallback(() => {
-    const edges = getEdges();
-    const incomingEdges = edges.filter((e) => e.target === id);
-    for (const edge of incomingEdges) {
-      const sourceNode = getNode(edge.source);
-      if (!sourceNode) continue;
-      const text = sourceNode.data?.output || sourceNode.data?.text;
-      if (text && text.trim()) return text;
-    }
-    return null;
-  }, [id, getEdges, getNode]);
+  const findSourceText = useNodeSource(id);
+  const { copy, copied } = useClipboard({ successMessage: "Hashtags copied!" });
 
   const handleGenerate = useCallback(async () => {
     const text = findSourceText();
     if (!text) {
-      toast.error("Connect a content node first!", { style: toastStyle });
+      showError("Connect a content node first!");
       return;
     }
     setLoading(true);
     try {
       const result = await generateTags(text);
       setTagData(result);
-      toast.success("Tags generated!", {
-        style: toastStyle,
-        iconTheme: { primary: "#06b6d4", secondary: "#f0f0f5" },
-      });
+      showSuccess("Tags generated!", { accent: "cyan" });
     } catch (err) {
-      toast.error(`Tag generation failed: ${err.message}`, {
-        style: toastStyle,
-      });
+      if (err.name !== "AbortError") {
+        showError(`Tag generation failed: ${err.message}`);
+      }
     } finally {
       setLoading(false);
     }
   }, [findSourceText]);
-
-  const handleCopyHashtags = useCallback(() => {
-    if (!tagData) return;
-    navigator.clipboard.writeText(tagData.hashtags.join(" "));
-    setCopied(true);
-    toast.success("Hashtags copied!", { style: toastStyle, duration: 1500 });
-    setTimeout(() => setCopied(false), 2000);
-  }, [tagData]);
 
   return (
     <div className="nexus-node tags-node fade-in">
@@ -130,7 +41,9 @@ export default function TagsNode({ data, id }) {
         <div className="nexus-node-icon">
           <Tags />
         </div>
-        <div className="nexus-node-title">Smart Tags</div>
+        <div className="nexus-node-title">
+          {data.labelOverride || "Smart Tags"}
+        </div>
         <span className="nexus-node-badge">SEO</span>
       </div>
 
@@ -211,7 +124,7 @@ export default function TagsNode({ data, id }) {
         {tagData && (
           <button
             className="node-btn node-btn-copy nodrag"
-            onClick={handleCopyHashtags}
+            onClick={() => copy(tagData.hashtags.join(" "))}
           >
             {copied ? <Check size={14} /> : <Copy size={14} />}
           </button>
@@ -222,3 +135,5 @@ export default function TagsNode({ data, id }) {
     </div>
   );
 }
+
+export default memo(TagsNode);

@@ -25,7 +25,6 @@ Resources:
   AssetsBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub "nexusflow-assets-${AWS::AccountId}"
       CorsConfiguration:
         CorsRules:
           - AllowedHeaders: ["*"]
@@ -54,7 +53,6 @@ Resources:
   GraphTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: NexusFlowGraphs
       AttributeDefinitions:
         - AttributeName: workspaceId
           AttributeType: S
@@ -62,6 +60,42 @@ Resources:
         - AttributeName: workspaceId
           KeyType: HASH
       BillingMode: PAY_PER_REQUEST
+
+  # ── DynamoDB Table for per-user data (profile + workflows) ──
+  UserDataTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
+  # ── Lambda: User Data (DynamoDB CRUD — per-user) ──
+  UserDataFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/userData/
+      Handler: index.handler
+      Environment:
+        Variables:
+          USER_DATA_TABLE: !Ref UserDataTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UserDataTable
+      Events:
+        SaveApi:
+          Type: Api
+          Properties:
+            Path: /user/{userId}/data
+            Method: put
+        LoadApi:
+          Type: Api
+          Properties:
+            Path: /user/{userId}/data
+            Method: get
 
   # ── Lambda: Generate Content (Bedrock Claude) ──
   GenerateContentFunction:
@@ -75,7 +109,9 @@ Resources:
         - Statement:
             - Effect: Allow
               Action:
-                - bedrock:InvokeModel
+                - bedrock:*
+                - aws-marketplace:ViewSubscriptions
+                - aws-marketplace:Subscribe
               Resource: "*"
       Events:
         Api:
@@ -90,13 +126,15 @@ Resources:
     Properties:
       CodeUri: lambdas/generateImage/
       Handler: index.handler
-      Timeout: 60
+      Timeout: 90
       MemorySize: 512
       Policies:
         - Statement:
             - Effect: Allow
               Action:
-                - bedrock:InvokeModel
+                - bedrock:*
+                - aws-marketplace:ViewSubscriptions
+                - aws-marketplace:Subscribe
               Resource: "*"
         - S3CrudPolicy:
             BucketName: !Ref AssetsBucket
@@ -139,7 +177,9 @@ Resources:
         - Statement:
             - Effect: Allow
               Action:
-                - bedrock:InvokeModel
+                - bedrock:*
+                - aws-marketplace:ViewSubscriptions
+                - aws-marketplace:Subscribe
               Resource: "*"
       Events:
         Api:
@@ -162,6 +202,128 @@ Resources:
             Path: /scrape
             Method: post
 
+  # ── Lambda: Generate Tags (Bedrock Haiku for SEO/hashtags) ──
+  GenerateTagsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/generateTags/
+      Handler: index.handler
+      Timeout: 30
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:*
+                - aws-marketplace:ViewSubscriptions
+                - aws-marketplace:Subscribe
+              Resource: "*"
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /tags
+            Method: post
+
+  # ── Lambda: Generate Schedule (Bedrock Haiku for content calendar) ──
+  GenerateScheduleFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/generateSchedule/
+      Handler: index.handler
+      Timeout: 30
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:*
+                - aws-marketplace:ViewSubscriptions
+                - aws-marketplace:Subscribe
+              Resource: "*"
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /schedule
+            Method: post
+
+  # ── Lambda: Summarize Content (Bedrock Haiku for summarization) ──
+  SummarizeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/summarize/
+      Handler: index.handler
+      Timeout: 30
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:*
+                - aws-marketplace:ViewSubscriptions
+                - aws-marketplace:Subscribe
+              Resource: "*"
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /summarize
+            Method: post
+
+  # ── Lambda: Trending Ideas (Bedrock Claude for content inspiration) ──
+  TrendingIdeasFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/trendingIdeas/
+      Handler: index.handler
+      Timeout: 30
+      MemorySize: 512
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:*
+                - aws-marketplace:ViewSubscriptions
+                - aws-marketplace:Subscribe
+              Resource: "*"
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /trending-ideas
+            Method: post
+
+  # ── Cognito User Pool for Authentication ──
+  NexusFlowUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: NexusFlowUsers
+      AutoVerifiedAttributes:
+        - email
+      UsernameAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireUppercase: false
+          RequireNumbers: true
+          RequireSymbols: false
+      Schema:
+        - Name: name
+          AttributeDataType: String
+          Mutable: true
+          Required: false
+
+  NexusFlowUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: NexusFlowWebApp
+      UserPoolId: !Ref NexusFlowUserPool
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      GenerateSecret: false
+      PreventUserExistenceErrors: ENABLED
+
 Outputs:
   ApiEndpoint:
     Description: API Gateway endpoint URL
@@ -174,3 +336,11 @@ Outputs:
   GraphTableName:
     Description: DynamoDB table name
     Value: !Ref GraphTable
+
+  UserPoolId:
+    Description: Cognito User Pool ID
+    Value: !Ref NexusFlowUserPool
+
+  UserPoolClientId:
+    Description: Cognito User Pool Client ID
+    Value: !Ref NexusFlowUserPoolClient

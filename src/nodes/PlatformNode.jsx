@@ -1,23 +1,21 @@
-import { useState, useCallback } from "react";
+// ── PlatformNode — Twitter / LinkedIn / Instagram / Blog / YouTube generator ──
+
+import { useState, useCallback, useEffect, useRef, memo } from "react";
 import { Handle, Position, useReactFlow } from "reactflow";
 import {
   Twitter,
   Linkedin,
   Instagram,
   BookOpen,
+  Youtube,
   Copy,
   Check,
   Sparkles,
 } from "lucide-react";
 import { generateContent } from "../api";
-import toast from "react-hot-toast";
-
-const toastStyle = {
-  background: "#1a1a28",
-  color: "#f0f0f5",
-  border: "1px solid rgba(255,255,255,0.08)",
-  fontSize: "13px",
-};
+import { showSuccess, showError } from "../utils/constants";
+import useNodeSource from "../hooks/useNodeSource";
+import useClipboard from "../hooks/useClipboard";
 
 const PLATFORM_CONFIG = {
   twitter: {
@@ -48,72 +46,125 @@ const PLATFORM_CONFIG = {
     charLimit: 15000,
     badgeText: "LONG-FORM",
   },
+  youtube: {
+    icon: Youtube,
+    label: "YouTube Script",
+    className: "youtube-node",
+    charLimit: 10000,
+    badgeText: "VIDEO",
+  },
 };
 
-export default function PlatformNode({ data, id }) {
+function PlatformNode({ data, id }) {
   const platform = data.platform || "twitter";
   const config = PLATFORM_CONFIG[platform];
   const Icon = config.icon;
 
-  const [tone, setTone] = useState(data.tone || 50);
-  const [length, setLength] = useState(data.length || "medium");
+  // Read tone and length from data props (set by RightPanel) with local fallback
+  const tone = data.tone ?? 50;
+  const length = data.length || "medium";
   const [output, setOutput] = useState(data.output || "");
   const [loading, setLoading] = useState(false);
-  const [copied, setCopied] = useState(false);
 
-  const { getEdges, getNode } = useReactFlow();
+  const { setNodes } = useReactFlow();
+  const findSourceText = useNodeSource(id);
+  const { copy, copied } = useClipboard({
+    successMessage: "Copied to clipboard!",
+  });
 
-  // Walk backward through edges to find any text source
-  const findSeedText = useCallback(() => {
-    const edges = getEdges();
-    const incomingEdges = edges.filter((e) => e.target === id);
-    if (incomingEdges.length === 0) return null;
+  // Helper to update this node's data
+  const updateData = useCallback(
+    (updates) => {
+      setNodes((nds) =>
+        nds.map((n) =>
+          n.id === id ? { ...n, data: { ...n.data, ...updates } } : n,
+        ),
+      );
+    },
+    [id, setNodes],
+  );
 
-    for (const edge of incomingEdges) {
-      const sourceNode = getNode(edge.source);
-      if (!sourceNode) continue;
-      // Seed nodes have 'text', platform nodes have 'output'
-      const text = sourceNode.data?.text || sourceNode.data?.output;
-      if (text && text.trim()) return text;
+  // Sync output when data.output changes externally (e.g. from Generate All)
+  useEffect(() => {
+    if (data.output && data.output !== output) {
+      setOutput(data.output);
     }
-    return null;
-  }, [id, getEdges, getNode]);
+  }, [data.output]);
 
   const handleGenerate = useCallback(async () => {
-    const seedText = findSeedText();
+    let seedText = findSourceText();
     if (!seedText) {
-      toast.error("Connect a Seed Node first! Drag from Seed → this node.", {
-        style: toastStyle,
-      });
+      showError("Connect a Seed Node first! Drag from Seed → this node.");
       return;
+    }
+    // Prepend custom AI instructions if available
+    if (data.customInstructions?.trim()) {
+      seedText = `Instructions: ${data.customInstructions.trim()}\n\n${seedText}`;
+    }
+    // Append language preference
+    if (data.language && data.language !== "english") {
+      seedText += `\n\nPlease write the output in ${data.language}.`;
+    }
+    // Append output format preference
+    if (data.outputFormat && data.outputFormat !== "default") {
+      const formatMap = {
+        thread: "Write as a thread with numbered points.",
+        bullet_points: "Write as bullet points.",
+        story: "Write as a personal story narrative.",
+        actionable: "Write as an actionable step-by-step guide.",
+        listicle: "Write as a listicle with clear numbered items.",
+      };
+      seedText += `\n\n${formatMap[data.outputFormat] || ""}`;
     }
     setLoading(true);
     try {
-      const result = await generateContent(seedText, platform, tone, length);
+      const result = await generateContent(
+        seedText,
+        platform,
+        tone,
+        length,
+        data.userProfile,
+      );
       setOutput(result.generatedText);
+      // Store output in node data so RightPanel Insights can read it
+      updateData({ output: result.generatedText });
       if (data.onOutputChange) data.onOutputChange(id, result.generatedText);
-      toast.success(`${config.label} generated!`, {
-        style: toastStyle,
-        iconTheme: { primary: "#8b5cf6", secondary: "#f0f0f5" },
-      });
+      showSuccess(`${config.label} generated!`);
     } catch (err) {
-      setOutput(`❌ Error: ${err.message}`);
-      toast.error(`Generation failed: ${err.message}`, { style: toastStyle });
+      if (err.name !== "AbortError") {
+        setOutput(`❌ Error: ${err.message}`);
+        showError(`Generation failed: ${err.message}`);
+      }
     } finally {
       setLoading(false);
     }
-  }, [findSeedText, platform, tone, length, id, data, config.label]);
+  }, [
+    findSourceText,
+    platform,
+    tone,
+    length,
+    id,
+    data.userProfile,
+    data.customInstructions,
+    data.language,
+    data.outputFormat,
+    data.onOutputChange,
+    config.label,
+    updateData,
+  ]);
 
-  const handleCopy = useCallback(() => {
-    if (!output) return;
-    navigator.clipboard.writeText(output);
-    setCopied(true);
-    toast.success("Copied to clipboard!", {
-      style: toastStyle,
-      duration: 1500,
-    });
-    setTimeout(() => setCopied(false), 2000);
-  }, [output]);
+  // Watch for external generate trigger (from RightPanel buttons)
+  const lastTriggerRef = useRef(null);
+  useEffect(() => {
+    if (
+      data.generateTrigger &&
+      data.generateTrigger !== lastTriggerRef.current &&
+      !loading
+    ) {
+      lastTriggerRef.current = data.generateTrigger;
+      handleGenerate();
+    }
+  }, [data.generateTrigger, handleGenerate, loading]);
 
   const charCount = output.length;
   const charPct = (charCount / config.charLimit) * 100;
@@ -130,7 +181,9 @@ export default function PlatformNode({ data, id }) {
         <div className="nexus-node-icon">
           <Icon />
         </div>
-        <div className="nexus-node-title">{config.label}</div>
+        <div className="nexus-node-title">
+          {data.labelOverride || config.label}
+        </div>
         <span className="nexus-node-badge">{config.badgeText}</span>
       </div>
 
@@ -144,7 +197,7 @@ export default function PlatformNode({ data, id }) {
               min="0"
               max="100"
               value={tone}
-              onChange={(e) => setTone(Number(e.target.value))}
+              onChange={(e) => updateData({ tone: Number(e.target.value) })}
             />
             <div className="node-slider-labels">
               <span>Corporate</span>
@@ -156,7 +209,7 @@ export default function PlatformNode({ data, id }) {
             <select
               className="node-select nodrag"
               value={length}
-              onChange={(e) => setLength(e.target.value)}
+              onChange={(e) => updateData({ length: e.target.value })}
             >
               <option value="short">Short</option>
               <option value="medium">Medium</option>
@@ -205,7 +258,7 @@ export default function PlatformNode({ data, id }) {
         </button>
         <button
           className="node-btn node-btn-copy nodrag"
-          onClick={handleCopy}
+          onClick={() => copy(output)}
           disabled={!output}
         >
           {copied ? <Check size={14} /> : <Copy size={14} />}
@@ -217,3 +270,5 @@ export default function PlatformNode({ data, id }) {
     </div>
   );
 }
+
+export default memo(PlatformNode);

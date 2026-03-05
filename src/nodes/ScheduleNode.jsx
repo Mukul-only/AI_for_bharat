@@ -1,91 +1,40 @@
-import { useState, useCallback } from "react";
-import { Handle, Position, useReactFlow } from "reactflow";
-import { Calendar, Download, Sparkles } from "lucide-react";
-import toast from "react-hot-toast";
+// ── ScheduleNode — AI content calendar ──
 
-const toastStyle = {
-  background: "#1a1a28",
-  color: "#f0f0f5",
-  border: "1px solid rgba(255,255,255,0.08)",
-  fontSize: "13px",
+import { useState, useCallback, memo } from "react";
+import { Handle, Position } from "reactflow";
+import { Calendar, Download, Sparkles } from "lucide-react";
+import { generateSchedule } from "../api";
+import { showSuccess, showError } from "../utils/constants";
+import useNodeSource from "../hooks/useNodeSource";
+
+const PLATFORM_COLORS = {
+  Twitter: "#1da1f2",
+  LinkedIn: "#0a66c2",
+  Instagram: "#e1306c",
+  Blog: "#10b981",
 };
 
-// Mock schedule generation
-async function generateSchedule(text) {
-  await new Promise((r) => setTimeout(r, 600 + Math.random() * 800));
-
-  const now = new Date();
-  const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-  const platforms = ["Twitter", "LinkedIn", "Instagram", "Blog"];
-  const times = ["9:00 AM", "12:30 PM", "3:00 PM", "6:00 PM", "8:30 PM"];
-
-  const schedule = [];
-  for (let i = 0; i < 7; i++) {
-    const date = new Date(now);
-    date.setDate(date.getDate() + i);
-    const postsPerDay = 1 + Math.floor(Math.random() * 2);
-    for (let j = 0; j < postsPerDay; j++) {
-      schedule.push({
-        date: date.toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-        }),
-        day: days[date.getDay()],
-        time: times[Math.floor(Math.random() * times.length)],
-        platform: platforms[Math.floor(Math.random() * platforms.length)],
-        type: ["Post", "Thread", "Story", "Article"][
-          Math.floor(Math.random() * 4)
-        ],
-        status: i === 0 ? "ready" : "scheduled",
-      });
-    }
-  }
-  return {
-    schedule: schedule.slice(0, 10),
-    bestTimes: {
-      Twitter: "12:30 PM & 6:00 PM",
-      LinkedIn: "9:00 AM & 3:00 PM",
-      Instagram: "8:30 PM",
-    },
-    recommendation:
-      "Post consistently at peak engagement times. Vary content types across platforms for maximum reach.",
-  };
-}
-
-export default function ScheduleNode({ data, id }) {
+function ScheduleNode({ data, id }) {
   const [scheduleData, setScheduleData] = useState(data.scheduleData || null);
   const [loading, setLoading] = useState(false);
 
-  const { getEdges, getNode } = useReactFlow();
-
-  const findSourceText = useCallback(() => {
-    const edges = getEdges();
-    const incomingEdges = edges.filter((e) => e.target === id);
-    for (const edge of incomingEdges) {
-      const sourceNode = getNode(edge.source);
-      if (!sourceNode) continue;
-      const text = sourceNode.data?.output || sourceNode.data?.text;
-      if (text && text.trim()) return text;
-    }
-    return null;
-  }, [id, getEdges, getNode]);
+  const findSourceText = useNodeSource(id);
 
   const handleGenerate = useCallback(async () => {
     const text = findSourceText();
     if (!text) {
-      toast.error("Connect a content node first!", { style: toastStyle });
+      showError("Connect a content node first!");
       return;
     }
     setLoading(true);
     try {
       const result = await generateSchedule(text);
       setScheduleData(result);
-      toast.success("Schedule generated!", {
-        style: toastStyle,
-        iconTheme: { primary: "#8b5cf6", secondary: "#f0f0f5" },
-      });
+      showSuccess("Schedule generated!");
     } catch (err) {
-      toast.error(`Schedule failed: ${err.message}`, { style: toastStyle });
+      if (err.name !== "AbortError") {
+        showError(`Schedule failed: ${err.message}`);
+      }
     } finally {
       setLoading(false);
     }
@@ -107,15 +56,8 @@ export default function ScheduleNode({ data, id }) {
     a.download = `nexusflow-schedule-${Date.now()}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    toast.success("Schedule exported as CSV!", { style: toastStyle });
+    showSuccess("Schedule exported as CSV!", { accent: "emerald" });
   }, [scheduleData]);
-
-  const platformColors = {
-    Twitter: "#1da1f2",
-    LinkedIn: "#0a66c2",
-    Instagram: "#e1306c",
-    Blog: "#10b981",
-  };
 
   return (
     <div className="nexus-node schedule-node fade-in">
@@ -123,7 +65,9 @@ export default function ScheduleNode({ data, id }) {
         <div className="nexus-node-icon">
           <Calendar />
         </div>
-        <div className="nexus-node-title">Content Calendar</div>
+        <div className="nexus-node-title">
+          {data.labelOverride || "Content Calendar"}
+        </div>
         <span className="nexus-node-badge">PLANNER</span>
       </div>
 
@@ -141,7 +85,7 @@ export default function ScheduleNode({ data, id }) {
                     <span
                       className="schedule-platform"
                       style={{
-                        color: platformColors[item.platform] || "#8b5cf6",
+                        color: PLATFORM_COLORS[item.platform] || "#8b5cf6",
                       }}
                     >
                       {item.platform}
@@ -167,7 +111,7 @@ export default function ScheduleNode({ data, id }) {
                   <div key={platform} className="schedule-best-time-row">
                     <span
                       style={{
-                        color: platformColors[platform],
+                        color: PLATFORM_COLORS[platform],
                         fontWeight: 600,
                         fontSize: 11,
                       }}
@@ -235,3 +179,5 @@ export default function ScheduleNode({ data, id }) {
     </div>
   );
 }
+
+export default memo(ScheduleNode);

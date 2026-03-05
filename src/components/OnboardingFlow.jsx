@@ -28,13 +28,15 @@ import {
   ArrowLeft,
   Check,
   Rocket,
+  Layers,
 } from "lucide-react";
 
 const STEPS = [
   {
     id: "niche",
     title: "What's your niche?",
-    subtitle: "Choose the area you create content about",
+    subtitle:
+      "Choose the area you create content about — we'll personalize your AI tools.",
     multiSelect: false,
     options: [
       { value: "food", label: "Food", icon: Utensils, color: "#f59e0b" },
@@ -58,14 +60,15 @@ const STEPS = [
         value: "other",
         label: "Other",
         icon: MoreHorizontal,
-        color: "#9090b0",
+        color: "#6b7280",
       },
     ],
   },
   {
     id: "platforms",
     title: "What platforms do you use?",
-    subtitle: "Select all that apply — we'll tailor your content nodes",
+    subtitle:
+      "Select all that apply — we'll tailor your content nodes for each platform.",
     multiSelect: true,
     options: [
       {
@@ -93,7 +96,8 @@ const STEPS = [
   {
     id: "audience",
     title: "Who is your audience?",
-    subtitle: "This helps us set the right tone and language",
+    subtitle:
+      "This helps us set the right tone, vocabulary, and language for your content.",
     multiSelect: false,
     options: [
       {
@@ -120,8 +124,9 @@ const STEPS = [
   },
   {
     id: "tone",
-    title: "What's your tone?",
-    subtitle: "Choose a voice that represents your brand",
+    title: "What's your content tone?",
+    subtitle:
+      "Choose a voice that best represents your brand and connects with your audience.",
     multiSelect: false,
     options: [
       { value: "funny", label: "Funny", icon: Laugh, color: "#f59e0b" },
@@ -205,68 +210,63 @@ export default function OnboardingFlow({ onComplete }) {
     if (currentStep > 0) setCurrentStep((s) => s - 1);
   };
 
-  const handleFinish = () => {
-    onComplete(answers);
-  };
+  const handleFinish = () => onComplete(answers);
 
-  // Summary labels
   const getLabel = (stepId, value) => {
     const s = STEPS.find((st) => st.id === stepId);
-    const opt = s?.options.find((o) => o.value === value);
-    return opt?.label || value;
+    return s?.options.find((o) => o.value === value)?.label || value;
   };
 
   if (showSummary) {
     return (
-      <div className="onboarding-overlay">
-        <div className="onboarding-card onboarding-slide-in">
-          <div className="onboarding-summary">
-            <div className="onboarding-summary-icon">
-              <Sparkles size={40} />
+      <div className="onb2-overlay">
+        <div className="onb2-mesh-bg" />
+        <div className="onb2-glow onb2-glow-1" />
+        <div className="onb2-glow onb2-glow-2" />
+        <div className="onb2-card onb2-slide-in">
+          <div className="onb2-summary">
+            <div className="onb2-summary-icon">
+              <Sparkles size={36} />
             </div>
-            <h2 className="onboarding-summary-title">You're all set!</h2>
-            <p className="onboarding-summary-subtitle">
+            <h2 className="onb2-summary-title">You're all set!</h2>
+            <p className="onb2-summary-subtitle">
               Here's your creator profile — we'll use this to personalize your
               content.
             </p>
-
-            <div className="onboarding-summary-grid">
-              <div className="onboarding-summary-item">
-                <span className="onboarding-summary-label">Niche</span>
-                <span className="onboarding-summary-value">
+            <div className="onb2-summary-grid">
+              <div className="onb2-summary-item">
+                <span className="onb2-summary-label">Niche</span>
+                <span className="onb2-summary-value">
                   {getLabel("niche", answers.niche)}
                 </span>
               </div>
-              <div className="onboarding-summary-item">
-                <span className="onboarding-summary-label">Platforms</span>
-                <span className="onboarding-summary-value">
+              <div className="onb2-summary-item">
+                <span className="onb2-summary-label">Platforms</span>
+                <span className="onb2-summary-value">
                   {answers.platforms
                     .map((p) => getLabel("platforms", p))
                     .join(", ")}
                 </span>
               </div>
-              <div className="onboarding-summary-item">
-                <span className="onboarding-summary-label">Audience</span>
-                <span className="onboarding-summary-value">
+              <div className="onb2-summary-item">
+                <span className="onb2-summary-label">Audience</span>
+                <span className="onb2-summary-value">
                   {getLabel("audience", answers.audience)}
                 </span>
               </div>
-              <div className="onboarding-summary-item">
-                <span className="onboarding-summary-label">Tone</span>
-                <span className="onboarding-summary-value">
+              <div className="onb2-summary-item">
+                <span className="onb2-summary-label">Tone</span>
+                <span className="onb2-summary-value">
                   {getLabel("tone", answers.tone)}
                 </span>
               </div>
             </div>
-
-            <div className="onboarding-nav">
-              <button className="onboarding-btn-back" onClick={handleBack}>
-                <ArrowLeft size={16} />
-                Back
+            <div className="onb2-nav">
+              <button className="onb2-btn-back" onClick={handleBack}>
+                <ArrowLeft size={16} /> Back
               </button>
-              <button className="onboarding-btn-finish" onClick={handleFinish}>
-                <Rocket size={16} />
-                Launch NexusFlow
+              <button className="onb2-btn-finish" onClick={handleFinish}>
+                <Rocket size={16} /> Launch NexusFlow
               </button>
             </div>
           </div>
@@ -275,60 +275,74 @@ export default function OnboardingFlow({ onComplete }) {
     );
   }
 
+  const isCompact = step.options.length <= 5;
+
   return (
-    <div className="onboarding-overlay">
-      <div className="onboarding-card">
-        {/* Progress */}
-        <div className="onboarding-progress">
-          {STEPS.map((_, i) => (
-            <div
-              key={i}
-              className={`onboarding-progress-step ${i <= currentStep ? "active" : ""} ${i < currentStep ? "completed" : ""}`}
-            >
-              <div className="onboarding-progress-dot">
-                {i < currentStep ? <Check size={12} /> : i + 1}
-              </div>
-              {i < totalSteps - 1 && (
-                <div
-                  className={`onboarding-progress-line ${i < currentStep ? "filled" : ""}`}
-                />
-              )}
+    <div className="onb2-overlay">
+      <div className="onb2-mesh-bg" />
+      <div className="onb2-glow onb2-glow-1" />
+      <div className="onb2-glow onb2-glow-2" />
+
+      <div className="onb2-card">
+        {/* Header: Logo + Step Progress */}
+        <div className="onb2-top-bar">
+          <div className="onb2-logo">
+            <div className="onb2-logo-icon">
+              <Zap size={20} />
             </div>
-          ))}
+            <span>NexusFlow</span>
+          </div>
+          {/* Step pills */}
+          <div className="onb2-step-pills">
+            {STEPS.map((_, i) => (
+              <div
+                key={i}
+                className={`onb2-pill ${i < currentStep ? "done" : ""} ${i === currentStep ? "active" : ""}`}
+              />
+            ))}
+          </div>
         </div>
 
         {/* Step content */}
         <div
-          className={`onboarding-step-content onboarding-slide-${direction}`}
+          className={`onb2-content onb2-slide-${direction}`}
           key={currentStep}
         >
-          <h2 className="onboarding-step-title">{step.title}</h2>
-          <p className="onboarding-step-subtitle">{step.subtitle}</p>
+          {/* Badge */}
+          <div className="onb2-badge">
+            <Layers size={12} />
+            <span>
+              Step {currentStep + 1} of {totalSteps}
+            </span>
+          </div>
 
-          <div
-            className={`onboarding-options ${step.options.length <= 5 ? "compact" : ""}`}
-          >
+          <h2 className="onb2-step-title">{step.title}</h2>
+          <p className="onb2-step-subtitle">{step.subtitle}</p>
+
+          {/* Options grid */}
+          <div className={`onb2-options ${isCompact ? "compact" : ""}`}>
             {step.options.map((opt) => {
               const Icon = opt.icon;
               const selected = isSelected(opt.value);
               return (
                 <button
                   key={opt.value}
-                  className={`onboarding-option ${selected ? "selected" : ""}`}
+                  className={`onb2-option ${selected ? "selected" : ""}`}
                   onClick={() => handleSelect(opt.value)}
                   style={{
                     "--opt-color": opt.color,
-                    "--opt-color-dim": `${opt.color}22`,
-                    "--opt-color-glow": `${opt.color}40`,
+                    "--opt-color-dim": `${opt.color}18`,
+                    "--opt-color-glow": `${opt.color}30`,
+                    "--opt-color-border": `${opt.color}50`,
                   }}
                 >
-                  <div className="onboarding-option-icon">
+                  <div className="onb2-option-icon">
                     <Icon size={22} />
                   </div>
-                  <span className="onboarding-option-label">{opt.label}</span>
+                  <span className="onb2-option-label">{opt.label}</span>
                   {selected && (
-                    <div className="onboarding-option-check">
-                      <Check size={14} />
+                    <div className="onb2-check-badge">
+                      <Check size={12} />
                     </div>
                   )}
                 </button>
@@ -338,17 +352,16 @@ export default function OnboardingFlow({ onComplete }) {
         </div>
 
         {/* Navigation */}
-        <div className="onboarding-nav">
+        <div className="onb2-nav">
           {currentStep > 0 ? (
-            <button className="onboarding-btn-back" onClick={handleBack}>
-              <ArrowLeft size={16} />
-              Back
+            <button className="onb2-btn-back" onClick={handleBack}>
+              <ArrowLeft size={16} /> Back
             </button>
           ) : (
             <div />
           )}
           <button
-            className={`onboarding-btn-next ${!canProceed() ? "disabled" : ""}`}
+            className={`onb2-btn-next ${!canProceed() ? "disabled" : ""}`}
             onClick={handleNext}
             disabled={!canProceed()}
           >

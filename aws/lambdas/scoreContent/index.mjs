@@ -1,11 +1,38 @@
 import {
   BedrockRuntimeClient,
-  InvokeModelCommand,
+  ConverseCommand,
 } from "@aws-sdk/client-bedrock-runtime";
 
 const bedrock = new BedrockRuntimeClient({
   region: process.env.AWS_REGION || "us-east-1",
 });
+
+// Try Claude Haiku first, fall back to Amazon Nova Lite, then Titan
+const MODELS_TO_TRY = [
+  "us.anthropic.claude-3-haiku-20240307-v1:0",
+  "us.amazon.nova-lite-v1:0",
+  "amazon.titan-text-express-v1",
+];
+
+async function callModel(messages, maxTokens = 1024, temperature = 0.3) {
+  for (const modelId of MODELS_TO_TRY) {
+    try {
+      const command = new ConverseCommand({
+        modelId,
+        messages,
+        inferenceConfig: { maxTokens, temperature },
+      });
+      const response = await bedrock.send(command);
+      return {
+        text: response.output.message.content[0].text,
+        model: modelId,
+      };
+    } catch (err) {
+      console.warn(`Model ${modelId} failed: ${err.message}`);
+    }
+  }
+  throw new Error("All models failed. Check Bedrock model access.");
+}
 
 export const handler = async (event) => {
   const headers = {
@@ -26,15 +53,7 @@ export const handler = async (event) => {
       };
     }
 
-    // Use Claude 3 Haiku for fast, cost-effective scoring
-    const command = new InvokeModelCommand({
-      modelId: "anthropic.claude-3-haiku-20240307-v1:0",
-      contentType: "application/json",
-      accept: "application/json",
-      body: JSON.stringify({
-        anthropic_version: "bedrock-2023-05-31",
-        max_tokens: 1024,
-        system: `You are a social media analytics expert. Analyze the given content for its viral potential and engagement probability on ${platform}.
+    const systemPrompt = `You are a social media analytics expert. Analyze the given content for its viral potential and engagement probability on ${platform}.
 
 You MUST respond with ONLY a valid JSON object in this exact format, no other text:
 {
@@ -60,29 +79,28 @@ Score criteria:
 - 61-80: Good viral potential
 - 81-100: Excellent viral potential
 
-Consider: hook strength, emotional resonance, readability, call-to-action clarity, hashtag strategy, platform best practices.`,
-        messages: [
-          {
-            role: "user",
-            content: `Analyze this ${platform} content for viral potential:\n\n${text.slice(0, 4000)}`,
-          },
-        ],
-        temperature: 0.3,
-      }),
-    });
+Consider: hook strength, emotional resonance, readability, call-to-action clarity, hashtag strategy, platform best practices.`;
 
-    const response = await bedrock.send(command);
-    const result = JSON.parse(new TextDecoder().decode(response.body));
-    const analysisText = result.content[0].text;
+    const result = await callModel(
+      [
+        {
+          role: "user",
+          content: [
+            {
+              text: `${systemPrompt}\n\nAnalyze this ${platform} content for viral potential:\n\n${text.slice(0, 4000)}`,
+            },
+          ],
+        },
+      ],
+      1024,
+      0.3,
+    );
 
-    // Parse the JSON response
     let analysis;
     try {
-      // Try to extract JSON from the response (handle potential markdown wrapping)
-      const jsonMatch = analysisText.match(/\{[\s\S]*\}/);
-      analysis = JSON.parse(jsonMatch ? jsonMatch[0] : analysisText);
+      const jsonMatch = result.text.match(/\{[\s\S]*\}/);
+      analysis = JSON.parse(jsonMatch ? jsonMatch[0] : result.text);
     } catch (parseErr) {
-      // Fallback if JSON parsing fails
       analysis = {
         score: 50,
         sentiment: { positive: 40, negative: 20, neutral: 40 },
@@ -101,7 +119,7 @@ Consider: hook strength, emotional resonance, readability, call-to-action clarit
       headers,
       body: JSON.stringify({
         ...analysis,
-        model: "claude-3-haiku",
+        model: result.model,
         platform,
       }),
     };

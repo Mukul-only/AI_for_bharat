@@ -1,14 +1,12 @@
-import { useState, useCallback } from "react";
-import { Handle, Position, useReactFlow } from "reactflow";
-import { AlignLeft, Sparkles, Copy, Check } from "lucide-react";
-import toast from "react-hot-toast";
+// ── SummarizeNode — Content summarization ──
 
-const toastStyle = {
-  background: "#1a1a28",
-  color: "#f0f0f5",
-  border: "1px solid rgba(255,255,255,0.08)",
-  fontSize: "13px",
-};
+import { useState, useCallback, memo } from "react";
+import { Handle, Position } from "reactflow";
+import { AlignLeft, Sparkles, Copy, Check } from "lucide-react";
+import { summarizeContent } from "../api";
+import { showSuccess, showError } from "../utils/constants";
+import useNodeSource from "../hooks/useNodeSource";
+import useClipboard from "../hooks/useClipboard";
 
 const SUMMARY_FORMATS = [
   { value: "oneliner", label: "1-Line" },
@@ -16,70 +14,33 @@ const SUMMARY_FORMATS = [
   { value: "bullets", label: "Bullet Points" },
 ];
 
-async function mockSummarize(text, format) {
-  await new Promise((r) => setTimeout(r, 700 + Math.random() * 800));
-
-  const core = text.slice(0, 60).replace(/\n/g, " ");
-
-  if (format === "oneliner") {
-    return `${core}... — a framework for transforming AI-driven content workflows into scalable digital strategies.`;
-  }
-  if (format === "bullets") {
-    return `Key Takeaways:\n\n• AI-powered workflows transform one idea into multi-platform content\n• Content repurposing saves 75% of creation time\n• Platform-native formatting increases engagement by 3-4x\n• Automated scheduling ensures consistent publishing cadence\n• Data-driven optimization through viral scoring and sentiment analysis`;
-  }
-  return `${core}... This approach leverages AI to transform a single piece of seed content into platform-optimized formats across Twitter, LinkedIn, Instagram, and blog channels. By combining automated generation with engagement scoring and SEO tagging, content creators can achieve significantly higher output while maintaining quality and brand consistency.`;
-}
-
-export default function SummarizeNode({ data, id }) {
+function SummarizeNode({ data, id }) {
   const [format, setFormat] = useState(data.format || "paragraph");
   const [output, setOutput] = useState(data.output || "");
   const [loading, setLoading] = useState(false);
-  const [copied, setCopied] = useState(false);
 
-  const { getEdges, getNode } = useReactFlow();
-
-  const findSourceText = useCallback(() => {
-    const edges = getEdges();
-    const incomingEdges = edges.filter((e) => e.target === id);
-    for (const edge of incomingEdges) {
-      const sourceNode = getNode(edge.source);
-      if (!sourceNode) continue;
-      const text = sourceNode.data?.output || sourceNode.data?.text;
-      if (text && text.trim()) return text;
-    }
-    return null;
-  }, [id, getEdges, getNode]);
+  const findSourceText = useNodeSource(id);
+  const { copy, copied } = useClipboard();
 
   const handleSummarize = useCallback(async () => {
     const text = findSourceText();
     if (!text) {
-      toast.error("Connect a content node first!", { style: toastStyle });
+      showError("Connect a content node first!");
       return;
     }
     setLoading(true);
     try {
-      const result = await mockSummarize(text, format);
-      setOutput(result);
-      toast.success("Summary generated!", {
-        style: toastStyle,
-        iconTheme: { primary: "#6366f1", secondary: "#f0f0f5" },
-      });
+      const result = await summarizeContent(text, format);
+      setOutput(result.summary);
+      showSuccess("Summary generated!", { accent: "indigo" });
     } catch (err) {
-      toast.error(`Summarization failed: ${err.message}`, {
-        style: toastStyle,
-      });
+      if (err.name !== "AbortError") {
+        showError(`Summarization failed: ${err.message}`);
+      }
     } finally {
       setLoading(false);
     }
   }, [findSourceText, format]);
-
-  const handleCopy = useCallback(() => {
-    if (!output) return;
-    navigator.clipboard.writeText(output);
-    setCopied(true);
-    toast.success("Copied!", { style: toastStyle, duration: 1500 });
-    setTimeout(() => setCopied(false), 2000);
-  }, [output]);
 
   return (
     <div className="nexus-node summarize-node fade-in">
@@ -87,7 +48,9 @@ export default function SummarizeNode({ data, id }) {
         <div className="nexus-node-icon">
           <AlignLeft />
         </div>
-        <div className="nexus-node-title">Summarizer</div>
+        <div className="nexus-node-title">
+          {data.labelOverride || "Summarizer"}
+        </div>
         <span className="nexus-node-badge">AI</span>
       </div>
 
@@ -139,7 +102,7 @@ export default function SummarizeNode({ data, id }) {
         {output && (
           <button
             className="node-btn node-btn-copy nodrag"
-            onClick={handleCopy}
+            onClick={() => copy(output)}
           >
             {copied ? <Check size={14} /> : <Copy size={14} />}
           </button>
@@ -151,3 +114,5 @@ export default function SummarizeNode({ data, id }) {
     </div>
   );
 }
+
+export default memo(SummarizeNode);

@@ -1,40 +1,23 @@
-import { useState, useCallback } from "react";
-import { Handle, Position, useReactFlow } from "reactflow";
+// ── ViralScoreNode — Content engagement analysis ──
+
+import { useState, useCallback, memo } from "react";
+import { Handle, Position } from "reactflow";
 import { TrendingUp, Sparkles } from "lucide-react";
 import { scoreContent } from "../api";
-import toast from "react-hot-toast";
+import { showSuccess, showError } from "../utils/constants";
+import useNodeSource from "../hooks/useNodeSource";
 
-const toastStyle = {
-  background: "#1a1a28",
-  color: "#f0f0f5",
-  border: "1px solid rgba(255,255,255,0.08)",
-  fontSize: "13px",
-};
-
-export default function ViralScoreNode({ data, id }) {
+function ViralScoreNode({ data, id }) {
   const [scoreData, setScoreData] = useState(data.scoreData || null);
   const [loading, setLoading] = useState(false);
 
-  const { getEdges, getNode } = useReactFlow();
-
-  const findSourceText = useCallback(() => {
-    const edges = getEdges();
-    const incomingEdges = edges.filter((e) => e.target === id);
-    for (const edge of incomingEdges) {
-      const sourceNode = getNode(edge.source);
-      if (!sourceNode) continue;
-      const text = sourceNode.data?.output || sourceNode.data?.text;
-      if (text && text.trim()) return text;
-    }
-    return null;
-  }, [id, getEdges, getNode]);
+  const findSourceText = useNodeSource(id);
 
   const handleAnalyze = useCallback(async () => {
     const text = findSourceText();
     if (!text) {
-      toast.error(
+      showError(
         "Connect a content node first! Drag from a Platform node → this node.",
-        { style: toastStyle },
       );
       return;
     }
@@ -42,12 +25,11 @@ export default function ViralScoreNode({ data, id }) {
     try {
       const result = await scoreContent(text);
       setScoreData(result);
-      toast.success(`Viral score: ${result.score}/100`, {
-        style: toastStyle,
-        iconTheme: { primary: "#f43f5e", secondary: "#f0f0f5" },
-      });
+      showSuccess(`Viral score: ${result.score}/100`, { accent: "rose" });
     } catch (err) {
-      toast.error(`Analysis failed: ${err.message}`, { style: toastStyle });
+      if (err.name !== "AbortError") {
+        showError(`Analysis failed: ${err.message}`);
+      }
     } finally {
       setLoading(false);
     }
@@ -61,7 +43,9 @@ export default function ViralScoreNode({ data, id }) {
         <div className="nexus-node-icon">
           <TrendingUp />
         </div>
-        <div className="nexus-node-title">Viral Check</div>
+        <div className="nexus-node-title">
+          {data.labelOverride || "Viral Check"}
+        </div>
         <span className="nexus-node-badge">ANALYTICS</span>
       </div>
 
@@ -152,3 +136,5 @@ export default function ViralScoreNode({ data, id }) {
     </div>
   );
 }
+
+export default memo(ViralScoreNode);

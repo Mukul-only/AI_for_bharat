@@ -773,7 +773,6 @@ export default function CaptionGenerator({
             gap: 10,
             padding: "16px 0",
             borderRadius: 12,
-            border: "none",
             background:
               canGenerate && !isGenerating
                 ? "linear-gradient(135deg, #A78BFA, #9333EA)"

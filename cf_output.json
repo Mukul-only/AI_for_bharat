@@ -1,0 +1,47 @@
+{
+    "Stacks": [
+        {
+            "StackId": "arn:aws:cloudformation:us-east-1:851307004095:stack/nexuxflow-stack/a5de8f30-14d2-11f1-b7d2-0afff7d060f3",
+            "StackName": "nexuxflow-stack",
+            "ChangeSetId": "arn:aws:cloudformation:us-east-1:851307004095:changeSet/samcli-deploy1772395297/642f4f47-8142-4661-b1d3-d1351caa856c",
+            "Description": "NexusFlow - AI Content Workflow Platform (AWS SAM)",
+            "CreationTime": "2026-02-28T18:23:58.511000+00:00",
+            "LastUpdatedTime": "2026-03-01T20:02:01.331000+00:00",
+            "RollbackConfiguration": {},
+            "StackStatus": "UPDATE_COMPLETE",
+            "DisableRollback": false,
+            "NotificationARNs": [],
+            "Capabilities": [
+                "CAPABILITY_IAM"
+            ],
+            "Outputs": [
+                {
+                    "OutputKey": "GraphTableName",
+                    "OutputValue": "NexusFlowGraphs",
+                    "Description": "DynamoDB table name"
+                },
+                {
+                    "OutputKey": "AssetsBucketName",
+                    "OutputValue": "nexusflow-assets-851307004095",
+                    "Description": "S3 bucket for assets"
+                },
+                {
+                    "OutputKey": "ApiEndpoint",
+                    "OutputValue": "https://mtifbbkl8l.execute-api.us-east-1.amazonaws.com/Prod",
+                    "Description": "API Gateway endpoint URL"
+                }
+            ],
+            "Tags": [],
+            "EnableTerminationProtection": false,
+            "DriftInformation": {
+                "StackDriftStatus": "NOT_CHECKED"
+            },
+            "LastOperations": [
+                {
+                    "OperationType": "UPDATE_STACK",
+                    "OperationId": "36f9716f-321e-45f7-97ca-768368536484"
+                }
+            ]
+        }
+    ]
+}

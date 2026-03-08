@@ -4,7 +4,6 @@ import { ProfileSidebar, ProfileTabBar } from "./ProfileSidebar";
 import { UserInfoSection } from "./UserInfoSection";
 import { ContentPreferencesSection } from "./ContentPreferencesSection";
 import { AppSettingsSection } from "./AppSettingsSection";
-import { UsageStatsSection } from "./UsageStatsSection";
 import { AccountSecuritySection } from "./AccountSecuritySection";
 
 const AVATAR_URL =
@@ -292,13 +291,7 @@ export default function ProfileWrapper({
             onChange={handleAppSettingsChange}
           />
         );
-      case "usage-stats":
-        return (
-          <UsageStatsSection
-            stats={usageStats}
-            recentActivity={recentActivity}
-          />
-        );
+
       case "account-security":
         return (
           <AccountSecuritySection

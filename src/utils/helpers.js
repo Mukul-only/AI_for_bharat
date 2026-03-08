@@ -23,10 +23,13 @@ export function debounce(fn, ms) {
  */
 export async function copyToClipboard(text) {
   try {
-    await navigator.clipboard.writeText(text);
-    return true;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+    throw new Error("Clipboard API not available");
   } catch {
-    // Fallback for older browsers
+    // Fallback for older browsers or non-secure contexts
     const textarea = document.createElement("textarea");
     textarea.value = text;
     textarea.style.position = "fixed";

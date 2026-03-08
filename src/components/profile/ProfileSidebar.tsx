@@ -40,12 +40,7 @@ const NAV_ITEMS: {
     icon: Settings,
     description: "Theme, AI model, sync",
   },
-  {
-    id: "usage-stats",
-    label: "Usage Stats",
-    icon: BarChart2,
-    description: "Activity & limits",
-  },
+
   {
     id: "account-security",
     label: "Account & Security",
@@ -210,71 +205,6 @@ export function ProfileSidebar({
           );
         })}
       </nav>
-
-      {/* Back button */}
-      {onGoBack && (
-        <div style={{ marginTop: "auto", paddingTop: 12 }}>
-          <div style={{ borderTop: `1px solid ${BORDER}`, paddingTop: 12 }}>
-            <button
-              onClick={onGoBack}
-              style={{
-                width: "100%",
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                padding: "10px 14px",
-                borderRadius: 10,
-                border: "none",
-                cursor: "pointer",
-                textAlign: "left",
-                fontFamily: FONT,
-                background: "transparent",
-                transition: "background 0.12s",
-                color: TEXT_SEC,
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "rgba(255,255,255,0.055)";
-                (
-                  e.currentTarget.querySelector(".back-icon") as HTMLElement
-                ).style.color = TEXT_PRI;
-                (
-                  e.currentTarget.querySelector(".back-label") as HTMLElement
-                ).style.color = TEXT_PRI;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "transparent";
-                (
-                  e.currentTarget.querySelector(".back-icon") as HTMLElement
-                ).style.color = TEXT_SEC;
-                (
-                  e.currentTarget.querySelector(".back-label") as HTMLElement
-                ).style.color = TEXT_SEC;
-              }}
-            >
-              <ArrowLeft
-                className="back-icon"
-                size={15}
-                style={{
-                  color: TEXT_SEC,
-                  flexShrink: 0,
-                  transition: "color 0.12s",
-                }}
-              />
-              <span
-                className="back-label"
-                style={{
-                  fontSize: 13,
-                  fontWeight: 500,
-                  color: TEXT_SEC,
-                  transition: "color 0.12s",
-                }}
-              >
-                Back
-              </span>
-            </button>
-          </div>
-        </div>
-      )}
     </aside>
   );
 }
